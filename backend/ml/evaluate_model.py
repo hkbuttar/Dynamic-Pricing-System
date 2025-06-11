@@ -5,7 +5,7 @@ from sklearn.metrics import mean_squared_error
 with open("ml/model.pkl", "rb") as f:
     model = pickle.load(f)
 
-df = pd.read_csv("data/historical_sales.csv")
+df = pd.read_csv("backend/data/historical_sales.csv")
 X = df[["price"]]
 y_true = df["units_sold"]
 y_pred = model.predict(X)

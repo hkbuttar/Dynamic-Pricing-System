@@ -1,6 +1,24 @@
+
 FROM python:3.10-slim
+
 WORKDIR /app
+
+# Copy requirements first for better caching
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
+
+# Copy the backend code
+COPY backend/ ./backend/
+COPY run.py ./
+
+# Create necessary directories
+RUN mkdir -p backend/ml backend/data
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Expose port
+EXPOSE 5000
+
+# Run the application
 CMD ["python", "run.py"]
