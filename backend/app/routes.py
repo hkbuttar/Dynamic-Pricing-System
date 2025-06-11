@@ -1,59 +1,55 @@
 from flask import Blueprint, jsonify, request
-import requests
-import json
-import os
-import sys
-
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-try:
-    from backend.pricing_engine import get_adjusted_prices
-except ImportError:
-    try:
-        from pricing_engine import get_adjusted_prices
-    except ImportError:
-        print("Warning: Could not import pricing_engine, using fallback")
+# Simple fallback pricing function (in case pricing_engine import fails)
+def simple_get_adjusted_prices(products):
+    """Simple pricing logic fallback"""
+    results = []
+    for product in products:
+        base_price = product["base_price"]
+        inventory = product["inventory"]
+        sales = product["sales_last_30_days"]
         
-        def get_adjusted_prices(products):
-            """Fallback pricing logic"""
-            results = []
-            for product in products:
-                base_price = product["base_price"]
-                inventory = product["inventory"]
-                sales = product["sales_last_30_days"]
-                
-                # Simple pricing rules
-                if inventory < 10:
-                    adjusted_price = base_price * 1.2
-                    rule_applied = "Low inventory: +20%"
-                else:
-                    adjusted_price = base_price * 1.05
-                    rule_applied = "Normal pricing: +5%"
-                
-                # Ensure constraints
-                adjusted_price = max(base_price * 1.1, min(adjusted_price, base_price * 1.5))
-                
-                product_result = product.copy()
-                product_result.update({
-                    "adjusted_price": round(adjusted_price, 2),
-                    "price_change_percent": round(((adjusted_price - base_price) / base_price) * 100, 2),
-                    "revenue_impact": round((adjusted_price - base_price) * sales, 2),
-                    "rule_applied": rule_applied,
-                    "predicted_sales": round(sales * 0.95, 1),
-                    "competitor_price": None,
-                    "demand_multiplier": 1.0
-                })
-                results.append(product_result)
-            
-            return results
+        # Simple pricing rules
+        if inventory < 10:
+            adjusted_price = base_price * 1.2
+            rule_applied = "Low inventory: +20%"
+        elif sales > 100:
+            adjusted_price = base_price * 1.1
+            rule_applied = "High demand: +10%"
+        else:
+            adjusted_price = base_price * 1.05
+            rule_applied = "Standard: +5%"
+        
+        # Ensure constraints
+        adjusted_price = max(base_price * 1.1, min(adjusted_price, base_price * 1.5))
+        
+        product_result = product.copy()
+        product_result.update({
+            "adjusted_price": round(adjusted_price, 2),
+            "price_change_percent": round(((adjusted_price - base_price) / base_price) * 100, 2),
+            "revenue_impact": round((adjusted_price - base_price) * sales, 2),
+            "rule_applied": rule_applied,
+            "predicted_sales": round(sales * 0.95, 1),
+            "competitor_price": None,
+            "demand_multiplier": 1.0
+        })
+        results.append(product_result)
+    
+    return results
+
+# Try to import the advanced pricing engine, fall back to simple one
+try:
+    from backend.app.pricing_engine import get_adjusted_prices
+    print("✅ Using advanced pricing engine")
+except ImportError:
+    print("⚠️ Using simple pricing engine fallback")
+    get_adjusted_prices = simple_get_adjusted_prices
 
 api_blueprint = Blueprint('api', __name__)
 
 @api_blueprint.route("/", methods=["GET"])
 def home():
     return jsonify({
-        "message": "Dynamic Pricing API is running", 
+        "message": "Dynamic Pricing API is running - Full Version", 
         "status": "healthy",
         "routes_registered": True
     })
@@ -106,7 +102,7 @@ def get_competitor_prices():
     try:
         print("🏪 Processing competitor prices request...")
         
-        # Mock competitor data since the API in assignment doesn't exist
+        # Mock competitor data
         competitor_data = [
             {"product_id": "P001", "competitor_price": 90.0, "competitor_name": "CompetitorA"},
             {"product_id": "P002", "competitor_price": 195.0, "competitor_name": "CompetitorB"},
@@ -119,21 +115,4 @@ def get_competitor_prices():
         return jsonify(competitor_data)
     except Exception as e:
         print(f"❌ Error in get_competitor_prices: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-# Debug route to check registered routes
-@api_blueprint.route("/api/debug/routes", methods=["GET"])
-def debug_routes():
-    """Debug endpoint to show all registered routes"""
-    try:
-        from flask import current_app
-        routes = []
-        for rule in current_app.url_map.iter_rules():
-            routes.append({
-                "endpoint": rule.endpoint,
-                "methods": list(rule.methods),
-                "rule": str(rule)
-            })
-        return jsonify({"registered_routes": routes})
-    except Exception as e:
         return jsonify({"error": str(e)}), 500
